@@ -1,55 +1,110 @@
-FROM debian:latest
+FROM ubuntu:focal
 
-RUN printf "deb http://ftp.au.debian.org/debian/ buster main contrib non-free\ndeb-src http://ftp.au.debian.org/debian/ buster main contrib non-free" > /etc/apt/sources.list
-
+# Standard libs / programs
+ENV DEBIAN_FRONTEND noninteractive
+ADD ./files/sources.list /etc/apt/sources.list
 RUN dpkg --add-architecture i386
-
 RUN apt update
 
 RUN apt install -y zsh curl git make build-essential libssl-dev zlib1g-dev libbz2-dev \
 libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
 xz-utils tk-dev libffi-dev liblzma-dev python-openssl apt-file dnsutils gdb cmake \
-python3.7-dev python3-pip nmap ncat libimage-exiftool-perl binwalk pngcheck vim \
-libc6-dev-i386 libpq-dev libsqlite-dev libpcap-dev libxslt-dev
+python3.8-dev python3-pip nmap ncat libimage-exiftool-perl binwalk pngcheck vim \
+libc6-dev-i386 libpq-dev libsqlite-dev libpcap-dev libxslt-dev whois groff-base jq wireguard \
+zip python3-dev virtualenvwrapper man tmux iputils-ping socat iproute2 strace ltrace libgmp3-dev \
+awscli libmpc-dev php
 
+# Install ZSH
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 
-RUN apt-file update
-
-ENV HOME="/root"
-
+# Set Environment Variables
 ENV LC_CTYPE=C.UTF-8
-
+ENV HOME="/root"
 ENV SHELL=/bin/zsh
+ENV PATH="$HOME/.cargo/bin:$HOME/.rbenv/shims:$HOME/.rbenv/bin:/usr/share/metasploit-framework:/usr/share/graudit:/usr/local/go/bin:$PATH"
+ENV GOBIN="/usr/local/go/bin"
 
-RUN pip3 install unicorn ropper keystone-engine capstone
+# Install pwntools
+RUN pip3 install ropper keystone-engine capstone ortools pandas unicorn==1.0.2rc3
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --upgrade pwntools
 
-RUN pip3 install git+https://github.com/arthaud/python3-pwntools.git
+# Symlink Python etc
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
-RUN cp /usr/local/lib/python3.7/dist-packages/usr/lib/python3/dist-packages/keystone/* /usr/local/lib/python3.7/dist-packages/keystone/
+# Install golang
+RUN wget -q https://dl.google.com/go/go1.15.linux-amd64.tar.gz -O /tmp/golang.tar.gz
+RUN tar -C /usr/local -xzf /tmp/golang.tar.gz
 
-RUN wget -q -O- https://github.com/hugsy/gef/raw/master/scripts/gef.sh | sh
-
+# Install rbenv & ruby
 RUN git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-
 RUN cd ~/.rbenv && src/configure && make -C src
-
-ENV PATH="$HOME/.rbenv/shims:$HOME/.rbenv/bin:$HOME/metasploit-framework:$PATH"
-
 RUN mkdir -p "$(rbenv root)"/plugins
-
 RUN git clone https://github.com/rbenv/ruby-build.git "$(rbenv root)"/plugins/ruby-build
+RUN rbenv install 3.0.2
+RUN rbenv global 3.0.2
 
-RUN rbenv install 2.6.5
+# Install metasploit
+WORKDIR /usr/share/
+RUN git clone https://github.com/rapid7/metasploit-framework.git
+WORKDIR /usr/share/metasploit-framework/
+RUN gem install bundler
+RUN bundle install
 
-RUN rbenv global 2.6.5
+# Install SQLMap
+WORKDIR /usr/share/
+RUN git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git sqlmap
 
+# Install graudit
+WORKDIR /usr/share/
+RUN git clone https://github.com/wireghoul/graudit.git
+
+# Install rust scan
+WORKDIR /root/
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+WORKDIR /usr/share/
+RUN git clone https://github.com/brandonskerritt/RustScan.git
+WORKDIR /usr/share/RustScan/
+RUN cargo build --release
+RUN ln -s /usr/share/RustScan/target/release/rustscan /usr/bin/rustscan
+
+# Install Ffuf
+WORKDIR /root/
+RUN git clone https://github.com/ffuf/ffuf.git
+WORKDIR /root/ffuf/
+RUN go build
+RUN mv /root/ffuf/ffuf /usr/bin/ffuf
+WORKDIR /root/
+RUN rm -rf /root/ffuf/
+RUN rm -rf /root/go
+
+# Install Vim
+WORKDIR /root/
+RUN git clone --recurse-submodules https://Peleus@bitbucket.org/Peleus/vim.git
+RUN /root/vim/restore.sh
+RUN rm -rf /root/vim/ 
+
+# Install Wordlists
+RUN mkdir /usr/wordlists/
+WORKDIR /usr/wordlists/
+RUN git clone https://github.com/danielmiessler/SecLists.git
+WORKDIR /usr/wordlists/SecLists/
+RUN git config --add oh-my-zsh.hide-status 1
+RUN git config --add oh-my-zsh.hide-dirty 1
 WORKDIR /root/
 
-RUN git clone https://github.com/rapid7/metasploit-framework.git
+# Install Unfurl
+RUN go get -u github.com/tomnomnom/unfurl
+RUN rm -rf /root/go/
 
-WORKDIR /root/metasploit-framework/
+# Configure Tmux
+ADD ./files/tmux.conf /root/.tmux.conf
 
-RUN gem install bundler
+# Move over the zshrc
+ADD ./files/zshrc.conf /root/.zshrc
 
-RUN bundle install
+# Set PTrace to 0
+RUN sed -i 's/1/0/g' /etc/sysctl.d/10-ptrace.conf
+
+# Install GEF
+RUN bash -c "$(wget https://gef.blah.cat/sh -O -)"
