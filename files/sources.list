@@ -1,4 +1,4 @@
-deb mirror://mirrors.ubuntu.com/mirrors.txt kinetic main restricted universe multiverse
-deb mirror://mirrors.ubuntu.com/mirrors.txt kinetic-updates main restricted universe multiverse
-deb mirror://mirrors.ubuntu.com/mirrors.txt kinetic-backports main restricted universe multiverse
-deb mirror://mirrors.ubuntu.com/mirrors.txt kinetic-security main restricted universe multiverse
+deb mirror://mirrors.ubuntu.com/mirrors.txt noble main restricted universe multiverse
+deb mirror://mirrors.ubuntu.com/mirrors.txt noble-updates main restricted universe multiverse
+deb mirror://mirrors.ubuntu.com/mirrors.txt noble-backports main restricted universe multiverse
+deb mirror://mirrors.ubuntu.com/mirrors.txt noble-security main restricted universe multiverse
